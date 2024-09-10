@@ -56,30 +56,34 @@ function fetchWeatherByCity(city) {
 // Fetch weather data from API
 async function fetchWeatherData(url) {
     try {
-        loader.style.display = 'block';
+        const previousCityError = cityErrorMessage.style.display === 'block';
+
+        if (!previousCityError) {
+            loader.style.display = 'block';
+        }
         weatherIcon.style.display = 'none';
         weatherTemperature.textContent = '';
         weatherDescription.textContent = '';
         locationName.textContent = '';
+
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error('City not found');
         }
-        const data = await response.json();
 
+        const data = await response.json();
         cityErrorMessage.style.display = 'none';
         displayWeatherData(data);
     } catch (error) {
-        // Display error message below the search button
         cityErrorMessage.textContent = error.message;
         cityErrorMessage.style.display = 'block';
         weatherIcon.style.display = 'none';
         weatherDetails.style.display = 'none';
-    }
-    finally {
+    } finally {
         loader.style.display = 'none';
     }
 }
+
 
 // Display the fetched weather data in the UI
 function displayWeatherData(data) {
