@@ -1,112 +1,110 @@
 const apiKey = '82005d27a116c2880c8f0fcb866998a0';
 const apiUrl = 'https://api.openweathermap.org/data/2.5/weather';
 
-const weatherTemperature = document.getElementById('temperature');
-const weatherDescription = document.getElementById('description');
 const locationName = document.getElementById('location');
 const weatherIcon = document.getElementById('weather-icon');
-const cityErrorMessage = document.getElementById('error-message');
-const locationErrorMessage = document.getElementById('location-error-message'); 
+const showWeatherTemperature = document.getElementById('temperature');
+const showweatherDescription = document.getElementById('description');
+const searchBtn = document.getElementById('search-btn');
 const loader = document.getElementById('loader');
+const showcityErrorMessage = document.getElementById('error-message');
+const locationErrorMessage = document.getElementById('location-error-message');
 const weatherDetails = document.querySelector('.weather-details');
-
 
 // On page load, get user's location
 window.onload = () => {
-    loader.style.display = 'none';
-    weatherDetails.style.display = 'none';
+    showPageLoader(true); 
+    showButtonLoader(false); 
+
     if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(handleLocationSuccess, handleLocationError);
+        navigator.geolocation.getCurrentPosition(fetchWeatherUsingGeolocation, handleLocationAccessDenied, { timeout: 10000 });
     } else {
-        locationErrorMessage.textContent = 'Geolocation is not supported by this browser.';
-        locationErrorMessage.style.display = 'block';
-        weatherIcon.style.display = 'none';
+        setTimeout(() => {
+            showPageLoader(false);
+            displayGeolocationUnsupportedError('Geolocation is not supported by this browser.');
+        }, 500);
     }
 };
 
-// Function to handle location success
-function handleLocationSuccess(position) {
+// Function to fetch weather data using geolocation coordinates
+function fetchWeatherUsingGeolocation(position) {
     const { latitude, longitude } = position.coords;
-    fetchWeatherByCoordinates(latitude, longitude);
-
-    // Clear any previous error messages
-    locationErrorMessage.style.display = 'none';
-    weatherDetails.style.display = 'grid';
+    fetchWeatherDataUsingCoordinates(latitude, longitude, false); // Pass false for initial load
 }
 
-// Function to handle location error
-function handleLocationError(error) {
-    locationErrorMessage.textContent = 'Location is not enabled. Please allow location access.';
-    locationErrorMessage.style.display = 'block';
-    weatherIcon.style.display = 'none';
+// Function to handle the scenario when location access is denied
+function handleLocationAccessDenied() {
+    setTimeout(() => {
+        showPageLoader(false);
+        displayLocationAccessDeniedError('Location is not enabled. Please allow location access.');
+    }, 500);
+    hideWeatherDetailsAndIcon();
 }
 
-// Fetch weather data based on coordinates (geolocation)
-function fetchWeatherByCoordinates(lat, lon) {
+// Function to fetch weather data based on coordinates (geolocation)
+function fetchWeatherDataUsingCoordinates(lat, lon, showButtonLoaderDuringFetch = true) {
     const url = `${apiUrl}?lat=${lat}&lon=${lon}&appid=${apiKey}`;
-    fetchWeatherData(url);
+    fetchWeatherDataFromAPI(url, showButtonLoaderDuringFetch);
 }
 
-// Fetch weather data by city name (search input)
-function fetchWeatherByCity(city) {
+// Function to fetch weather data based on city name (from search input)
+function fetchWeatherDataUsingCityName(city) {
     const url = `${apiUrl}?q=${city}&appid=${apiKey}`;
-    fetchWeatherData(url);
+    fetchWeatherDataFromAPI(url, true); // Always show button loader during search
 }
 
-// Fetch weather data from API
-async function fetchWeatherData(url) {
+// Fetch weather data from the API using the provided URL
+async function fetchWeatherDataFromAPI(url, showButtonLoaderDuringFetch) {
     try {
-        const previousCityError = cityErrorMessage.style.display === 'block';
-
-        if (!previousCityError) {
-            loader.style.display = 'block';
+        if (showButtonLoaderDuringFetch) {
+            showButtonLoader(true); // Show loading state on search button
         }
-        weatherIcon.style.display = 'none';
-        weatherTemperature.textContent = '';
-        weatherDescription.textContent = '';
-        locationName.textContent = '';
+        hideLocationErrorMessage();
+
+        // Hide the page loader during search
+        showPageLoader(false);
 
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error('City not found');
         }
 
-        const data = await response.json();
-        cityErrorMessage.style.display = 'none';
-        displayWeatherData(data);
+        const weatherData = await response.json();
+        hideshowcityErrorMessage();
+        updateWeatherUIWithFetchedData(weatherData);
     } catch (error) {
-        cityErrorMessage.textContent = error.message;
-        cityErrorMessage.style.display = 'block';
-        weatherIcon.style.display = 'none';
-        weatherDetails.style.display = 'none';
+        clearWeatherDetailsOnError();
+        displayCityNotFoundError(error.message);
     } finally {
-        loader.style.display = 'none';
+        if (showButtonLoaderDuringFetch) {
+            showButtonLoader(false); // Reset the search button to normal state
+        }
     }
 }
 
+// Function to update the UI with fetched weather data
+function updateWeatherUIWithFetchedData(data) {
+    const temperatureInCelsius = data.main && data.main.temp ? convertKelvinToCelsius(data.main.temp) : 'N/A';
+    showWeatherTemperature.textContent = `${temperatureInCelsius}°C`;
+    showWeatherTemperature.style.display = 'block';
 
-// Display the fetched weather data in the UI
-function displayWeatherData(data) {
-    console.log(data);
-    
-    const temperatureInCelsius = data.main && data.main.temp ? kelvinToCelsius(data.main.temp) : 'N/A';
-    weatherTemperature.textContent = `${temperatureInCelsius}°C`;
+    showweatherDescription.textContent = data.weather[0].description;
+    showweatherDescription.style.display = 'block';
 
-    weatherDescription.textContent = data.weather[0].description;
     locationName.textContent = `${data.name}, ${data.sys.country}`;
+    locationName.style.display = 'block';
 
-    const iconCode = data.weather[0].icon; 
-    weatherIcon.src = `./images/${iconCode}.png`; 
+    const iconCode = data.weather[0].icon;
+    weatherIcon.src = `./images/${iconCode}.png`;
     weatherIcon.style.display = 'block';
 
-    // Update additional details
+    // Show additional weather details
     document.getElementById('humidity').textContent = data.main.humidity;
-    document.getElementById('wind-speed').textContent = (data.wind.speed * 3.6).toFixed(2); 
+    document.getElementById('wind-speed').textContent = (data.wind.speed * 3.6).toFixed(2); // Convert m/s to km/h
     document.getElementById('pressure').textContent = data.main.pressure;
-    document.getElementById('feels-like').textContent = kelvinToCelsius(data.main.feels_like);
+    document.getElementById('feels-like').textContent = convertKelvinToCelsius(data.main.feels_like);
 
-    // Change background based on sunrise and sunset
-    const currentTime = new Date().getTime() / 1000; 
+    const currentTime = new Date().getTime() / 1000;
     const sunrise = data.sys.sunrise;
     const sunset = data.sys.sunset;
 
@@ -117,17 +115,78 @@ function displayWeatherData(data) {
         document.body.classList.add('night');
         document.body.classList.remove('day');
     }
+    weatherDetails.style.display = 'grid';
 }
 
+// Function to clear the weather details on error
+function clearWeatherDetailsOnError() {
+    showWeatherTemperature.textContent = '';
+    showweatherDescription.textContent = '';
+    locationName.textContent = '';
+    weatherIcon.style.display = 'none';
+    showWeatherTemperature.style.display = 'none';
+    showweatherDescription.style.display = 'none';
+    locationName.style.display = 'none';
+    weatherDetails.style.display = 'none';
+}
 
-function kelvinToCelsius(kelvin) {
+// Convert temperature from Kelvin to Celsius
+function convertKelvinToCelsius(kelvin) {
     return Math.round(kelvin - 273.15);
 }
 
-document.getElementById('search-btn').addEventListener('click', () => {
+// Show error message when location access is denied
+function displayLocationAccessDeniedError(message) {
+    locationErrorMessage.textContent = message;
+    locationErrorMessage.style.display = 'block';
+}
+
+// Show error message when geolocation is unsupported
+function displayGeolocationUnsupportedError(message) {
+    locationErrorMessage.textContent = message;
+    locationErrorMessage.style.display = 'block';
+}
+
+// Hide location error message
+function hideLocationErrorMessage() {
+    locationErrorMessage.style.display = 'none';
+}
+
+// Show error message for city not found
+function displayCityNotFoundError(message) {
+    showcityErrorMessage.textContent = message;
+    showcityErrorMessage.style.display = 'block';
+}
+
+// Hide city error message
+function hideshowcityErrorMessage() {
+    showcityErrorMessage.style.display = 'none';
+}
+
+// Hide weather details and icon on error
+function hideWeatherDetailsAndIcon() {
+    weatherDetails.style.display = 'none';
+    weatherIcon.style.display = 'none';
+}
+
+// Show or hide the page loader
+function showPageLoader(isLoading) {
+    loader.style.display = isLoading ? 'flex' : 'none';
+}
+
+// Show or hide the button loader
+function showButtonLoader(isLoading) {
+    searchBtn.disabled = isLoading;
+    searchBtn.textContent = isLoading ? 'Loading...' : 'Search';
+}
+
+// Add event listener to search button
+searchBtn.addEventListener('click', () => {
     const city = document.getElementById('location-input').value.trim();
     if (city) {
-        fetchWeatherByCity(city);
+        showPageLoader(false); 
+        showButtonLoader(true); 
+        fetchWeatherDataUsingCityName(city);
     } else {
         alert('Please enter a city name');
     }
